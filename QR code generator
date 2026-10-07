@@ -1,0 +1,304 @@
+import qrcode
+from PIL import Image, ImageDraw, ImageTk
+import tkinter as tk
+from tkinter import filedialog, colorchooser, messagebox
+
+logo_path = None
+
+
+def choose_logo():
+    global logo_path
+
+    logo_path = filedialog.askopenfilename(
+        title="Vælg logo",
+        filetypes=[
+            ("Billedfiler", "*.png *.jpg *.jpeg *.bmp"),
+            ("Alle filer", "*.*")
+        ]
+    )
+
+    if logo_path:
+
+        logo_label.config(
+            text=f"Logo valgt: {logo_path.split('/')[-1]}"
+        )
+
+        logo_img = Image.open(logo_path)
+        logo_img.thumbnail((100, 100))
+
+        logo_photo = ImageTk.PhotoImage(logo_img)
+
+        logo_preview.config(image=logo_photo)
+        logo_preview.image = logo_photo
+
+        update_preview()
+
+
+def choose_fill_color():
+
+    color = colorchooser.askcolor()[1]
+
+    if color:
+        fill_entry.delete(0, tk.END)
+        fill_entry.insert(0, color)
+
+        update_preview()
+
+
+def choose_background_color():
+
+    color = colorchooser.askcolor()[1]
+
+    if color:
+        background_entry.delete(0, tk.END)
+        background_entry.insert(0, color)
+
+        update_preview()
+
+
+def create_qr_image():
+
+    data = data_entry.get().strip()
+
+    if not data:
+        return None
+
+    try:
+        box_size = int(size_entry.get())
+    except ValueError:
+        box_size = 10
+
+    fill_color = fill_entry.get() or "black"
+    back_color = background_entry.get() or "white"
+
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        box_size=box_size,
+        border=4
+    )
+
+    qr.add_data(data)
+    qr.make(fit=True)
+
+    img = qr.make_image(
+        fill_color=fill_color,
+        back_color=back_color
+    ).convert("RGB")
+
+    if logo_path:
+
+        logo = Image.open(logo_path)
+
+        qr_width, qr_height = img.size
+
+        logo_size = qr_width // 5
+
+        logo = logo.resize(
+            (logo_size, logo_size),
+            Image.Resampling.LANCZOS
+        )
+
+        background_size = int(logo_size * 1.30)
+
+        logo_background = Image.new(
+            "RGBA",
+            (background_size, background_size),
+            (255, 255, 255, 255)
+        )
+
+        draw = ImageDraw.Draw(logo_background)
+
+        draw.ellipse(
+            (0, 0, background_size, background_size),
+            fill=(255, 255, 255, 255)
+        )
+
+        pos_x = (background_size - logo_size) // 2
+        pos_y = (background_size - logo_size) // 2
+
+        logo_background.paste(
+            logo,
+            (pos_x, pos_y),
+            logo if logo.mode == "RGBA" else None
+        )
+
+        center_x = (qr_width - background_size) // 2
+        center_y = (qr_height - background_size) // 2
+
+        img.paste(
+            logo_background,
+            (center_x, center_y),
+            logo_background
+        )
+
+    return img
+
+
+def update_preview():
+
+    img = create_qr_image()
+
+    if img is None:
+
+        preview_label.config(image="")
+        return
+
+    preview_img = img.copy()
+
+    preview_img.thumbnail((250, 250))
+
+    photo = ImageTk.PhotoImage(preview_img)
+
+    preview_label.config(image=photo)
+    preview_label.image = photo
+
+
+def generate_qr():
+
+    img = create_qr_image()
+
+    if img is None:
+        messagebox.showerror(
+            "Fejl",
+            "Indtast tekst eller URL"
+        )
+        return
+
+    filename = filedialog.asksaveasfilename(
+        title="Gem QR-kode",
+        defaultextension=".png",
+        filetypes=[
+            ("PNG filer", "*.png")
+        ]
+    )
+
+    if not filename:
+        return
+
+    img.save(filename)
+
+    Image.open(filename).show()
+
+    messagebox.showinfo(
+        "Færdig",
+        f"QR-koden er gemt som:\n{filename}"
+    )
+
+
+# GUI
+
+root = tk.Tk()
+root.title("QR Generator Pro")
+root.geometry("600x800")
+
+tk.Label(
+    root,
+    text="Tekst eller URL"
+).pack(pady=5)
+
+data_entry = tk.Entry(
+    root,
+    width=60
+)
+
+data_entry.pack()
+
+tk.Label(
+    root,
+    text="Størrelse"
+).pack(pady=5)
+
+size_entry = tk.Entry(
+    root,
+    width=10
+)
+
+size_entry.insert(0, "10")
+size_entry.pack()
+
+tk.Label(
+    root,
+    text="QR-farve"
+).pack(pady=5)
+
+fill_entry = tk.Entry(
+    root,
+    width=20
+)
+
+fill_entry.insert(0, "black")
+fill_entry.pack()
+
+tk.Button(
+    root,
+    text="Vælg QR-farve",
+    command=choose_fill_color
+).pack()
+
+tk.Label(
+    root,
+    text="Baggrundsfarve"
+).pack(pady=5)
+
+background_entry = tk.Entry(
+    root,
+    width=20
+)
+
+background_entry.insert(0, "white")
+background_entry.pack()
+
+tk.Button(
+    root,
+    text="Vælg baggrundsfarve",
+    command=choose_background_color
+).pack()
+
+tk.Label(
+    root,
+    text="Logo (valgfrit)"
+).pack(pady=10)
+
+logo_label = tk.Label(
+    root,
+    text="Intet logo valgt"
+)
+
+logo_label.pack()
+
+tk.Button(
+    root,
+    text="Vælg logo",
+    command=choose_logo
+).pack()
+
+logo_preview = tk.Label(root)
+logo_preview.pack(pady=10)
+
+tk.Label(
+    root,
+    text="Live Preview"
+).pack(pady=5)
+
+preview_label = tk.Label(root)
+preview_label.pack(pady=10)
+
+tk.Button(
+    root,
+    text="Generér QR-kode",
+    command=generate_qr,
+    bg="#4CAF50",
+    fg="white",
+    padx=20,
+    pady=10
+).pack(pady=20)
+
+# Live updates
+
+data_entry.bind("<KeyRelease>", lambda e: update_preview())
+size_entry.bind("<KeyRelease>", lambda e: update_preview())
+fill_entry.bind("<KeyRelease>", lambda e: update_preview())
+background_entry.bind("<KeyRelease>", lambda e: update_preview())
+
+root.mainloop()
